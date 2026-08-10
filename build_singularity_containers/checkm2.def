@@ -1,0 +1,31 @@
+# =============================================================================
+# checkm2_1.0.2--pyh7cba7a3_0.sif -- CheckM2
+#
+# Used by metagenomics_wgs_pipeline.sbatch for:
+#   checkm2 predict --database_path <uniref100.KO.1.dmnd>
+#
+# VERSION: confirmed. The original filename is the exact Bioconda package spec
+# (checkm2 1.0.2, build pyh7cba7a3_0), i.e. the image was almost certainly built
+# straight from the Biocontainers image for that build.
+#
+# The DIAMOND database is NOT baked in -- the pipeline passes it explicitly via
+# --database_path, and it is ~3 GB. See docs/databases.md.
+# =============================================================================
+
+Bootstrap: docker
+From: quay.io/biocontainers/checkm2:1.0.2--pyh7cba7a3_0
+
+%labels
+    Maintainer  hpc-metagenomics-workflow
+    Software    CheckM2
+    Version     1.0.2--pyh7cba7a3_0   # confirmed from the original .sif filename
+    Provides    checkm2
+
+%environment
+    export LC_ALL=C
+
+%runscript
+    exec "$@"
+
+%test
+    checkm2 --version

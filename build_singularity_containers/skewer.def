@@ -1,0 +1,35 @@
+# =============================================================================
+# skewer_0.2.2.sif -- skewer read trimmer
+#
+# Used by rgi_card_screening.sbatch for adapter and quality trimming of paired
+# reads:
+#   skewer -Q 20 -q 20 -m pe -x <adapters_R1> -y <adapters_R2> -l 35 -z
+#
+# VERSION: confirmed from the original filename (skewer_0.2.2.sif); 0.2.2 is
+# also the last upstream release.
+# =============================================================================
+
+Bootstrap: docker
+From: mambaorg/micromamba:1.5.8
+
+%labels
+    Maintainer  hpc-metagenomics-workflow
+    Software    skewer
+    Version     0.2.2        # confirmed from the original .sif filename
+    Provides    skewer
+
+%post
+    set -eux
+    micromamba install -y -n base -c conda-forge -c bioconda \
+        skewer=0.2.2
+    micromamba clean --all --yes
+
+%environment
+    export PATH=/opt/conda/bin:$PATH
+    export LC_ALL=C
+
+%runscript
+    exec "$@"
+
+%test
+    skewer --version

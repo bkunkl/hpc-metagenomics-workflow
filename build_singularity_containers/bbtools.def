@@ -1,0 +1,40 @@
+# =============================================================================
+# bbtools.sif -- BBTools (bbduk.sh, dedupe.sh, reformat.sh)
+#
+# Used by BOTH workflows:
+#   metagenomics_wgs_pipeline.sbatch : bbduk.sh   (adapter/quality trimming)
+#   rgi_card_screening.sbatch        : dedupe.sh, reformat.sh
+#
+# VERSION: the source .sif was named `bbtools.sif`, with no version in the
+# filename and no inspect metadata available.
+# best-effort -- verify before rebuilding
+# To pin the version you actually ran with, on the old image:
+#   singularity exec bbtools.sif bbduk.sh --version
+# =============================================================================
+
+Bootstrap: docker
+From: mambaorg/micromamba:1.5.8
+
+%labels
+    Maintainer  hpc-metagenomics-workflow
+    Software    BBTools (BBMap)
+    Version     39.06        # best-effort -- verify before rebuilding
+    Provides    bbduk.sh dedupe.sh reformat.sh
+
+%post
+    set -eux
+    micromamba install -y -n base -c conda-forge -c bioconda \
+        bbmap=39.06 \
+        openjdk=17
+    micromamba clean --all --yes
+
+%environment
+    export PATH=/opt/conda/bin:$PATH
+    export LC_ALL=C
+
+%runscript
+    exec "$@"
+
+%test
+    bbduk.sh --version 2>&1 | head -n 5
+    dedupe.sh --version 2>&1 | head -n 5

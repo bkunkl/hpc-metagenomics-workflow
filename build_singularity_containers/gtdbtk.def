@@ -1,0 +1,49 @@
+# =============================================================================
+# gtdbtk_latest.sif -- GTDB-Tk
+#
+# Used by metagenomics_wgs_pipeline.sbatch for:
+#   gtdbtk classify_wf --genome_dir <bins> --mash_db <...> --extension fa
+#
+# VERSION: the original .sif was tagged `latest`. The pin below is NOT a blind
+# "newest release" guess -- the pipeline config points at GTDB reference data
+# `release220`, and GTDB-Tk versions are tied to a specific reference release.
+# GTDB-Tk 2.4.x is the series built for R220, so 2.4.0 is the defensible choice.
+# Using a GTDB-Tk whose expected release does not match the reference data on
+# disk makes classify_wf abort at startup.
+# best-effort -- verify before rebuilding
+#
+# The reference data (~110 GB) is NOT baked into the image; it is bind-mounted
+# and located via GTDBTK_DATA_PATH, which the job script exports. See
+# docs/databases.md.
+# =============================================================================
+
+Bootstrap: docker
+From: mambaorg/micromamba:1.5.8
+
+%labels
+    Maintainer  hpc-metagenomics-workflow
+    Software    GTDB-Tk
+    Version     2.4.0        # best-effort -- chosen to match GTDB R220; verify
+    RefData     GTDB release220
+    Provides    gtdbtk mash
+
+%post
+    set -eux
+    micromamba install -y -n base -c conda-forge -c bioconda \
+        gtdbtk=2.4.0 \
+        mash=2.3
+    micromamba clean --all --yes
+
+%environment
+    export PATH=/opt/conda/bin:$PATH
+    export LC_ALL=C
+    # Deliberately NOT set here: GTDBTK_DATA_PATH. The reference data lives on
+    # the host and the path differs per site, so the job script exports it via
+    # SINGULARITYENV_GTDBTK_DATA_PATH at run time.
+
+%runscript
+    exec "$@"
+
+%test
+    gtdbtk --version
+    mash --version

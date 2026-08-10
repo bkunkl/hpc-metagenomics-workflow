@@ -1,0 +1,41 @@
+# =============================================================================
+# anvio-8.sif -- anvi'o 8
+#
+# Used by metagenomics_wgs_pipeline.sbatch for exactly one command:
+#   anvi-script-reformat-fasta --simplify-names --prefix <id> --min-len 1000
+#
+# That renames assembler contigs to short, unique, sample-prefixed names and
+# drops short contigs -- a prerequisite for the downstream binning tools, which
+# choke on MEGAHIT/IDBA contig headers.
+#
+# VERSION: confirmed by the original filename (anvio-8.sif).
+# =============================================================================
+
+Bootstrap: docker
+From: mambaorg/micromamba:1.5.8
+
+%labels
+    Maintainer  hpc-metagenomics-workflow
+    Software    anvi'o
+    Version     8            # confirmed from the original .sif filename
+    Provides    anvi-script-reformat-fasta
+
+%post
+    set -eux
+    micromamba install -y -n base -c conda-forge -c bioconda \
+        python=3.10 \
+        anvio=8
+    micromamba clean --all --yes
+
+%environment
+    export PATH=/opt/conda/bin:$PATH
+    export LC_ALL=C
+    # anvi'o writes here on first use; keep it out of $HOME so the container
+    # works on a read-only home directory.
+    export ANVIO_CONFIG_DIR=/tmp/anvio
+
+%runscript
+    exec "$@"
+
+%test
+    anvi-script-reformat-fasta --help 2>&1 | head -n 5

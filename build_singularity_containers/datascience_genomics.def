@@ -1,0 +1,65 @@
+# =============================================================================
+# datascience_genomics.sif -- bowtie2, samtools, MEGAHIT on a Jupyter base image
+#
+# Used by metagenomics_wgs_pipeline.sbatch for:
+#   bowtie2        (host/vector decontamination, mapping reads to contigs)
+#   bowtie2-build  (indexing assembled contigs)
+#   samtools       (view / sort / index)
+#   megahit        (metagenome assembly)
+#
+# CONFIRMED from `singularity inspect` of the original image:
+#   Docker base   : jupyter/datascience-notebook:2023-05-30  (Ubuntu 22.04)
+#   Built with    : Singularity 4.0.1
+#   Built on      : 2025-01-21
+#
+# NOT CONFIRMED: the exact bowtie2 / samtools / megahit versions. The pins below
+# are the releases that were current around the original build date.
+# best-effort -- verify before rebuilding
+# To recover the real versions from the old image:
+#   singularity exec datascience_genomics.sif bowtie2 --version | head -1
+#   singularity exec datascience_genomics.sif samtools --version | head -2
+#   singularity exec datascience_genomics.sif megahit --version
+# =============================================================================
+
+Bootstrap: docker
+From: jupyter/datascience-notebook:2023-05-30
+
+%labels
+    Maintainer  hpc-metagenomics-workflow
+    BaseImage   jupyter/datascience-notebook:2023-05-30
+    Bowtie2     2.5.1        # best-effort -- verify before rebuilding
+    Samtools    1.17         # best-effort -- verify before rebuilding
+    MEGAHIT     1.2.9        # best-effort -- verify before rebuilding
+
+%post
+    set -eux
+
+    # The Jupyter images run as the unprivileged `jovyan` user and put conda in
+    # /opt/conda; %post runs as root, so point mamba at that installation
+    # explicitly rather than relying on the user's shell init.
+    export PATH=/opt/conda/bin:$PATH
+    export MAMBA_ROOT_PREFIX=/opt/conda
+
+    mamba install -y -n base -c conda-forge -c bioconda \
+        bowtie2=2.5.1 \
+        samtools=1.17 \
+        megahit=1.2.9
+
+    mamba clean --all --yes
+
+    # Make the new binaries readable/executable for every user, since the
+    # pipeline does not run as jovyan.
+    chmod -R a+rX /opt/conda
+
+%environment
+    export PATH=/opt/conda/bin:$PATH
+    export LC_ALL=C
+
+%runscript
+    exec "$@"
+
+%test
+    bowtie2 --version | head -n 1
+    bowtie2-build --version | head -n 1
+    samtools --version | head -n 2
+    megahit --version

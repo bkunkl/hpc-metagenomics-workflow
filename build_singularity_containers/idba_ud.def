@@ -1,0 +1,60 @@
+# =============================================================================
+# IDBA-UD.sif -- IDBA-UD assembler
+#
+# Used by metagenomics_wgs_pipeline.sbatch for the second assembly branch:
+#   fq2fa    (paired FASTQ -> merged FASTA, IDBA's required input format)
+#   idba_ud  (iterative de Bruijn graph assembly, --mink 24 --maxk 124)
+#
+# VERSION: the original .sif carried no version. 1.1.3 is the last upstream
+# release (2016) and the only one in general use.
+# best-effort -- verify before rebuilding
+#
+# IMPORTANT BUILD DETAIL: stock IDBA is compiled with kMaxShortSequence = 128,
+# which silently truncates reads longer than 128 bp -- fatal for 150 bp Illumina
+# data. The sed below raises that limit before compiling. If the original image
+# did NOT include this patch, its IDBA-UD results were computed on truncated
+# reads. Worth checking against the old image if you still have it.
+# =============================================================================
+
+Bootstrap: docker
+From: ubuntu:22.04
+
+%labels
+    Maintainer  hpc-metagenomics-workflow
+    Software    IDBA-UD
+    Version     1.1.3        # best-effort -- verify before rebuilding
+    Provides    idba_ud fq2fa
+
+%post
+    set -eux
+    export DEBIAN_FRONTEND=noninteractive
+
+    apt-get update
+    apt-get install -y --no-install-recommends \
+        build-essential ca-certificates wget autoconf automake libtool zlib1g-dev
+    rm -rf /var/lib/apt/lists/*
+
+    cd /opt
+    wget -q https://github.com/loneknightpy/idba/releases/download/1.1.3/idba-1.1.3.tar.gz
+    tar xzf idba-1.1.3.tar.gz
+    cd idba-1.1.3
+
+    # Support 150 bp (and longer) reads -- see the note in the header.
+    sed -i 's/static const uint32_t kMaxShortSequence = 128;/static const uint32_t kMaxShortSequence = 512;/' \
+        src/sequence/short_sequence.h
+
+    ./configure
+    make -j "$(nproc)"
+
+    install -m 0755 bin/idba_ud bin/fq2fa /usr/local/bin/
+    cd /opt && rm -rf idba-1.1.3 idba-1.1.3.tar.gz
+
+%environment
+    export LC_ALL=C
+
+%runscript
+    exec "$@"
+
+%test
+    idba_ud --help 2>&1 | head -n 3
+    fq2fa --help 2>&1 | head -n 3

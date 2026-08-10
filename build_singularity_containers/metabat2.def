@@ -1,0 +1,41 @@
+# =============================================================================
+# metabat_latest.sif -- MetaBAT2 binner
+#
+# Used by metagenomics_wgs_pipeline.sbatch for:
+#   jgi_summarize_bam_contig_depths  (per-contig coverage from the BAM)
+#   metabat2                          (contig -> MAG binning)
+#
+# VERSION: the original .sif was tagged `latest`. 2.17 is the current upstream
+# release and is what `latest` most likely resolved to.
+# best-effort -- verify before rebuilding
+#   singularity exec metabat_latest.sif metabat2 --help 2>&1 | head -1
+# =============================================================================
+
+Bootstrap: docker
+From: mambaorg/micromamba:1.5.8
+
+%labels
+    Maintainer  hpc-metagenomics-workflow
+    Software    MetaBAT2
+    Version     2.17         # best-effort -- original was ":latest"; verify
+    Provides    metabat2 jgi_summarize_bam_contig_depths
+
+%post
+    set -eux
+    micromamba install -y -n base -c conda-forge -c bioconda \
+        metabat2=2.17
+    micromamba clean --all --yes
+
+%environment
+    export PATH=/opt/conda/bin:$PATH
+    export LC_ALL=C
+    # MetaBAT2 is OpenMP-threaded; -t on the command line sets the thread count,
+    # but pin this too so it cannot inherit a stale value from the host.
+    export OMP_NUM_THREADS=1
+
+%runscript
+    exec "$@"
+
+%test
+    metabat2 --help 2>&1 | head -n 3
+    jgi_summarize_bam_contig_depths 2>&1 | head -n 3

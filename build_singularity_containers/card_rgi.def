@@ -1,0 +1,67 @@
+# =============================================================================
+# CARD_RGI-6.0.4.sif -- CARD Resistance Gene Identifier
+#
+# Used by rgi_card_screening.sbatch for:
+#   rgi load   (import CARD + WILDCARD reference data into RGI's own database)
+#   rgi bwt    (read-level ARG detection and quantification)
+#
+# VERSION: 6.0.4, confirmed from the original filename.
+#
+# ---------------------------------------------------------------------------
+# THE PATH BELOW IS LOAD-BEARING
+# ---------------------------------------------------------------------------
+# `rgi load` writes its database into RGI's own site-packages directory, not
+# into a configurable data directory. The job script works around that by
+# bind-mounting a per-sample writable directory over:
+#
+#   /opt/miniforge3/envs/rgi/lib/python3.12/site-packages/app/_db
+#   /opt/miniforge3/envs/rgi/lib/python3.12/site-packages/app/_data
+#
+# That path is reproduced exactly here: miniforge3 at /opt, an env named `rgi`,
+# Python 3.12. Change any of those three and you must update RGI_DB_PREFIX in
+# config/rgi_pipeline.config.sh to match, or every array task will silently run
+# against the image's unloaded database.
+# ---------------------------------------------------------------------------
+#
+# The CARD reference data itself is NOT baked in -- it is versioned separately
+# from RGI and is passed to `rgi load` from the host. See docs/databases.md.
+# =============================================================================
+
+Bootstrap: docker
+From: condaforge/miniforge3:24.3.0-0
+
+%labels
+    Maintainer  hpc-metagenomics-workflow
+    Software    CARD RGI
+    Version     6.0.4        # confirmed from the original .sif filename
+    Python      3.12
+    Provides    rgi
+
+%post
+    set -eux
+    export PATH=/opt/conda/bin:$PATH
+
+    # Recreate the exact prefix the job script bind-mounts into.
+    ln -s /opt/conda /opt/miniforge3 || true
+
+    conda create -y -n rgi -c conda-forge -c bioconda \
+        python=3.12 \
+        rgi=6.0.4
+
+    conda clean --all --yes
+
+    # Make the RGI app directory writable-through for the bind mounts, and
+    # ensure the mount points exist even before anything is bound over them.
+    RGI_APP=/opt/conda/envs/rgi/lib/python3.12/site-packages/app
+    mkdir -p "${RGI_APP}/_db" "${RGI_APP}/_data"
+    chmod -R a+rX /opt/conda/envs/rgi
+
+%environment
+    export PATH=/opt/conda/envs/rgi/bin:/opt/conda/bin:$PATH
+    export LC_ALL=C
+
+%runscript
+    exec "$@"
+
+%test
+    rgi main --version || rgi --version

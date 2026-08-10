@@ -1,0 +1,83 @@
+# =============================================================================
+# mags-practical-2024_v2_mod.sif -- CheckM (lineage_wf)
+#
+# ****  RECONSTRUCTION -- APPROXIMATION ONLY  *********************************
+# The original image came from a training course ("MAGs practical 2024") and was
+# then modified locally. No `singularity inspect` output and no original recipe
+# survive. Everything below is inferred from the single command the pipeline
+# actually invokes:
+#
+#   checkm lineage_wf --extension fa <bins> <out> --tab_table --file <tab> \
+#                     --threads N --pplacer_threads N
+#
+# best-effort -- verify before rebuilding
+# ****************************************************************************
+#
+# HOW TO VERIFY, if the original .sif is still on disk:
+#   singularity exec mags-practical-2024_v2_mod.sif checkm -h | head -3   # version
+#   singularity exec mags-practical-2024_v2_mod.sif python --version
+#   singularity exec mags-practical-2024_v2_mod.sif checkm data setRoot   # DB location
+#   singularity exec mags-practical-2024_v2_mod.sif pplacer --version
+#   singularity exec mags-practical-2024_v2_mod.sif hmmsearch -h | head -2
+#   singularity inspect --deffile mags-practical-2024_v2_mod.sif           # may be empty
+#   ls -la /path/to/checkm_data                                           # DB release
+# The things most likely to differ from this recipe, in order:
+#   1. whether the CheckM reference data is baked into the image (as here) or
+#      bind-mounted from the host,
+#   2. the CheckM data release (2015_01_16 is the last upstream one),
+#   3. what else the course image carried that this pipeline never calls.
+#
+# NOTE: CheckM1 is kept alongside CheckM2 deliberately -- the pipeline runs both.
+# CheckM1's marker-lineage placement and CheckM2's ML predictor disagree in
+# useful ways on novel wastewater lineages, so having both is a QC cross-check,
+# not redundancy.
+# =============================================================================
+
+Bootstrap: docker
+From: mambaorg/micromamba:1.5.8
+
+%labels
+    Maintainer  hpc-metagenomics-workflow
+    Software    CheckM
+    Version     1.2.2        # best-effort -- reconstructed, verify
+    Status      APPROXIMATION -- original recipe unavailable
+    Provides    checkm
+
+%post
+    set -eux
+
+    micromamba install -y -n base -c conda-forge -c bioconda \
+        python=3.9 \
+        checkm-genome=1.2.2 \
+        hmmer=3.3.2 \
+        prodigal=2.6.3 \
+        pplacer=1.1.alpha19
+    micromamba clean --all --yes
+
+    # ---- CheckM reference data ---------------------------------------------
+    # best-effort -- the original may instead have expected this bind-mounted.
+    # ~1.4 GB; drop this block and set CHECKM_DATA_PATH to a host path if you
+    # would rather keep it outside the image.
+    mkdir -p /opt/checkm_data
+    cd /opt/checkm_data
+    micromamba run -n base python -c "import urllib.request; \
+        urllib.request.urlretrieve( \
+        'https://data.ace.uq.edu.au/public/CheckM_databases/checkm_data_2015_01_16.tar.gz', \
+        'checkm_data.tar.gz')"
+    tar xzf checkm_data.tar.gz
+    rm -f checkm_data.tar.gz
+    chmod -R a+rX /opt/checkm_data
+
+    micromamba run -n base bash -c "echo /opt/checkm_data | checkm data setRoot /opt/checkm_data"
+
+%environment
+    export PATH=/opt/conda/bin:$PATH
+    export LC_ALL=C
+    export CHECKM_DATA_PATH=/opt/checkm_data
+
+%runscript
+    exec "$@"
+
+%test
+    checkm -h 2>&1 | head -n 5
+    test -d "$CHECKM_DATA_PATH" && echo "checkm data present"
