@@ -339,7 +339,7 @@ is a config edit rather than a script edit.
 - **Bash 4.3+** on the login and compute nodes (`mapfile`, associative arrays).
 - The container images, built from `build_singularity_containers/`.
 - The reference databases in [`docs/databases.md`](docs/databases.md) —
-  roughly 190 GB in total, dominated by GTDB-Tk and Kraken2 `pluspf`.
+  roughly over 300 GB in total, dominated by GTDB-Tk and Kraken2 `pluspf`.
 - Enough scratch for intermediates: budget ~5× the raw FASTQ size per sample for
   the shotgun pipeline (two assemblies, two BAMs, bins), ~2× for RGI.
 
@@ -350,29 +350,6 @@ Indicative resources per array task, from the original job scripts:
 | CPUs | 60 | 20 |
 | Memory | 120 GB | 2 GB/CPU (40 GB) |
 | Walltime | see [N1](docs/known_issues.md#n1--the-walltime-is-almost-certainly-too-short) | 1.5 h |
-
----
-
-## Known issues in the original scripts
-
-The scripts here are a cleaned-up version of working code. Several genuine
-defects were found while generalising them; they are documented rather than
-silently patched, in [`docs/known_issues.md`](docs/known_issues.md). The most
-consequential:
-
-- **[F1](docs/known_issues.md)** — `GTDBTk_classify_wf` referenced an undefined
-  `$bins_path`, which clobbered the global `contig_size` and mislabelled every
-  GTDB-Tk output.
-- **[F2](docs/known_issues.md)** — `GTDBTK_DATA_PATH` was never set, so GTDB-Tk
-  was never told where its reference data lives.
-- **[F4](docs/known_issues.md)** — the sample list was globbed from a directory
-  the pipeline also writes into, so re-runs could shift samples onto the wrong
-  array index.
-- **[F5](docs/known_issues.md)** — `xargs rm` with empty input failed the job
-  precisely when every bin passed QC.
-- **[N1](docs/known_issues.md), [N2](docs/known_issues.md)** — a 3-hour walltime
-  for a task that runs two assemblers plus GTDB-Tk, and
-  `--pplacer_threads 60` against a 120 GB allocation.
 
 ---
 
